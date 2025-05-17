@@ -1,0 +1,100 @@
+function [] = ssim_batch()
+
+gt_dir = '.\\ProcessingGroundtruth\\output';
+hy_dir = '.\\NaturalNeighbor\\DP2\\output';
+
+pDIRS = dir(hy_dir);
+
+[dirCount, a] = size(pDIRS);
+
+%fprintf('%s;%s;%s;%s;%s;%s\n', 'dir', 'file', 'mssimRED', 'mssimGREEN', 'mssimBLUE', 'mssimGRAY');
+%fprintf('%s;%s;%g;%g;%g;%g\n', pDIR.name, file.name, mssimRED, mssimGREEN, mssimBLUE, mssimGRAY);
+prefix = ['']
+sql = 1;
+for p = 1:dirCount
+    
+    pDIR = pDIRS(p);
+    
+    if strcmp(pDIR.name, '.')==1
+        continue
+    end
+    
+    if strcmp(pDIR.name, '..')==1
+        continue
+    end
+    
+    if pDIR.isdir
+        
+        create = strcmp(prefix, '');
+        newprefix = pDIR.name(1:strfind(pDIR.name, '_'));
+
+        if strcmp(newprefix, prefix) ~= 1
+            tsv = datevec ( now );
+            ts = datestr ( tsv, 'yyyy-mm-dd_HH-MM-SS-FFF');
+            if sql ~= 1
+                fclos
+            end
+            sql = fopen(['report'-' ts '.sql'], 'w');
+            prefix=oldprefix;
+        end
+        
+        %fprintf ('Processing directory %s\n', pDIR.name);
+    
+        files = dir([hy_dir '\\' pDIR.name]);
+
+        [fileCount, a] = size(files);
+
+        for f = 1:fileCount
+            
+            file = files(f);
+            
+            if ~ file.isdir
+                
+                gtName = regexprep(file.name, '\.light\.', '.nolight.');
+                gtName = regexprep(gtName, '\.1out\.', '.');
+                
+                hyFilename = [hy_dir '\\' pDIR.name '\\' file.name];
+                gtFilename = [gt_dir '\\' gtName];
+            
+                imH = imread(hyFilename);
+                imG = imread(gtFilename);
+                
+                [mssimGRAY , mssim_map] = ssim_index(rgb2gray(imH), rgb2gray(imG));
+                [mssimRED  , mssim_map] = ssim_index(   imH(:,:,1),    imG(:,:,1));
+                [mssimGREEN, mssim_map] = ssim_index(   imH(:,:,2),    imG(:,:,2));
+                [mssimBLUE , mssim_map] = ssim_index(   imH(:,:,3),    imG(:,:,3));
+                
+                params = [pDIR.name '_'];
+
+                fprintf(sql, 'update shading_results set ');
+                fprintf(sql, ' ssimRED=''%g''', mssimRED);
+                fprintf(sql, ',ssimGREEN=''%g''', mssimGREEN);
+                fprintf(sql, ',ssimBLUE=''%g''', mssimBLUE);
+                fprintf(sql, ',ssimGRAY=''%g''', mssimGRAY);
+                fprintf(sql, '\nwhere\n');
+                fprintf(sql, ' K=''%s'''     , extractParam(params, 'K'));
+                fprintf(sql, ' and MC=''%s''', extractParam(params, 'MC'));
+                fprintf(sql, ' and GD=''%s''', extractParam(params, 'GD'));
+                fprintf(sql, ' and SL=''%s''', extractParam(params, 'SL'));
+                fprintf(sql, ' and DBUC=''%s''', extractParam(params, 'DBUC'));
+                fprintf(sql, ' and file=''%s''', file.name);
+                fprintf(sql, '; \n\n');
+                
+            end 
+            
+            
+        end
+    end
+
+    
+end
+end
+
+function result = extractParam(params, name)
+    begin = strfind(params, ['_' name]);
+    [a,nameLength] = size(name);
+    [b,paramsLength] = size(params);
+    suffix = params((nameLength+begin+1):paramsLength);
+    result = suffix(1:strfind(suffix, '_')-1);
+end
+

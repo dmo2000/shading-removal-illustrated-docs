@@ -1,0 +1,1 @@
+# Shading Removal of Illustrated Documents
